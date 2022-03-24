@@ -1,0 +1,171 @@
+function bridge
+    build_basic_bridge(1)
+    build_load_plot_basic_bridge(nos, car_weight)
+    plot_bridge(nos, xc, yc)
+    plot_spy(adj, nos)
+end
+function [adj, xc, yc, len] = build_basic_bridge(nos)
+    % calculate some helpful numbers
+    num_nodes = 2 * nos + 2;
+    num_edges = 5 * nos + 5;
+    s = 1/sqrt(2);
+    % initialize the return values
+    adj = zeros(num_edges, 2 * num_nodes);
+    xc = zeros(num_edges, 2);
+    yc = zeros(num_edges, 2);
+    len = ones (num_edges, 1);
+    % build the left side of bridge
+    adj(1, 1) = 1;
+    adj(2, [3 4]) = [s s];
+    xc(1, :) = [0 1];
+    xc(2, :) = [0 1];
+    yc(1, :) = [0 0];
+    yc(2, :) = [0 1];
+    len(2) = 1/s;
+    % build the middle of bridge
+    for i = 1:nos-1
+        start_row = i*5;
+        start_col = i*4;
+
+        adj(start_row - 2, start_col -2) = -1;
+        adj(start_row - 2, start_col) = 1;
+        xc(start_row -2, :) = [i, i];
+        yc(start_row -2, :) = [0, 1];
+        len(start_row - 1) = 1/s;
+
+        adj(start_row, start_column - 1) = -1;
+        adj(start_row, start_column + 3) = 1;
+        xc(start_row,:) = [i, i+1];
+        yc(start_row,:) = [1, 1];
+        % Fiber 6
+        adj(start_row + 1,[start_column - 3:start_column - 2]) = [-s, -s];
+        adj(start_row + 1,[start_column + 3:start_column + 4]) = [s, s];
+        xc(start_row + 1,:) = [i,i+1];
+        yc(start_row + 1,:) = [0,1];
+        len(start_row + 1) = 1/s;
+        % Fiber 7
+        adj(start_row + 2, start_column - 3) = -1;
+        adj(start_row + 2, start_column + 1) = 1;
+        xc(start_row + 2,:) = [i,i+1];
+        yc(start_row + 2,:) = [0,0];
+        % build the right side of bridge
+        adj(end - 2, end - 2) = -1;
+        adj(end - 2, end) = 1;
+        adj(end - 1, [end - 1,end]) = [-s,s];
+        adj(end,end - 3) = -1;
+        xc(end - 2,:) = [nos + 1,nos + 1];
+        yc(end - 2,:) = [0, 1];
+        xc(end - 1,:) = [nos + 1, nos + 2];
+        yc(end - 1,:) = [1, 0];
+        xc(end,:) = [nos + 1, nos + 2];
+        yc(end,:) = [0,0];
+        len(end - 1) = 1/s;
+    end
+end
+function [dx,dy,work,X,Y] = deform_basic_bridge(nos,adj,xc,yc,len,force)
+    % calculate some helpful numbers
+    stiffness = adj' * diag(1./len) * adj;
+    force = zeros(4 * nos + 4, 1);
+    force(2:4:end) = -weight;
+    displacements = stiffness\force; 
+    work = displacements' * force;
+    X = displacements(1:2:end);
+    Y = displacements(2:2:end);
+    % initialize the return values
+    dx = zeros(size(xc));
+    dy = zeros(size(yc));
+    % deform the left side of bridge
+    dx(1,:) = xc(1,:) + [0 X(1)];
+    dx(2,:) = xc(2,:) + [0 X(2)];
+    dy(1,:) = yc(1,:) + [0 Y(1)];
+    dy(2,:) = yc(2,:) + [0 Y(2)];
+    % deform the middle of bridge
+    for i = 1:nos
+        column = 2 * i;
+        row = 5 * i;
+        dx(row - 2,:) = xc(row - 2,:) + [X(column - 1) X(column)];
+        dy(row - 2,:) = yc(row - 2,:) + [Y(column - 1) Y(column)];
+        dx(row - 1,:) = xc(row - 1,:) + [X(column) X(column + 1)];
+        dy(row - 1,:) = yc(row - 1,:) + [Y(column) Y(column + 1)];
+        dx(row,:) = xc(row,:) + [X(column) X(column + 2)];
+        dy(row,:) = yc(row,:) + [Y(column) Y(column + 2)];
+        dx(row + 1,:) = xc(row + 1,:) + [X(column - 1) X(column + 2)];
+        dy(row + 1,:) = yc(row + 1,:) + [Y(column - 1) Y(column + 2)];
+        dx(row + 2,:) = xc(row + 2,:) + [X(column - 1) X(column + 1)];
+        dy(row + 2,:) = yc(row + 2,:) + [Y(column - 1) Y(column + 1)];
+    end
+    % deform the right side of bridge
+    dx(end - 2,:) = xc(end - 2,:) + [X(end - 1) X(end)];
+    dy(end - 2,:) = yc(end - 2,:) + [Y(end - 1) Y(end)];
+    dx(end - 1,:) = xc(end - 1,:) + [X(end) 0];
+    dy(end - 1,:) = yc(end - 1,:) + [Y(end) 0];
+    dx(end,:) = xc(end,:) + [X(end - 1) 0];
+    dy(end,:) = yc(end,:) + [Y(end - 1) 0];
+    % return 
+end
+% Function: plotbridge
+% Inputs: nos (number of middle sections), xc (x-coordinatse for fibers),
+yc (y-coordinates for fibers), weight (measure of force), work (scalar
+measurement of bridge deformation), X & Y (helper matrices of displacement in
+horizontal and vertical directions)
+% Outputs: None
+function plotbridge(nos,xc,yc,weight,work)
+% Creates new figure and plots the bridge
+figure
+line(xc',yc','Color','b')
+hold on
+fill([0,-1,-1,1],[0,0,-1,-1],'y')
+fill([nos + 2, nos + 1, nos + 3, nos + 3],[0,-1,-1,0],'y')
+t = '';
+t = strcat(t,num2str(nos)," Section Bridge When Cars Weigh
+",num2str(weight)," Units (Work = ",num2str(work),")");
+title(t)
+end
+% Function: plotspy
+% Inputs: adj (adjacency matrix), nos (number of middle sections)
+% Outputs: None
+function plotspy(adj,nos)
+% Produces new figure and plots adjacency matrix
+figure
+spy(adj)
+t = '';
+t = strcat(t,num2str(nos)," Section Bridge Adjacency Matrix");
+title(t)
+xlabel("Nonzero Matrix Columns")
+3
+ylabel("Nonzero Matrix Rows")
+end
+% Function: buildloadplotbasicbridge
+% Inputs: nos (number of middle sections)
+% Outputs: None
+function buildloadplotbasicbridge(nos)
+% Calls buildbasicbridge function and plots nondeformed bridge and
+adjacency matrix
+[adj,xc,yc,len] = buildbasicbridge(nos);
+plotspy(adj,nos);
+plotbridge(nos,xc,yc,0,0);
+% Calls deformbasicbridge and plots deformed bridges with hacing weight as
+0.01 and 0.05
+[dx,dy,work] = deformbasicbridge(nos,adj,xc,yc,len,0.01);
+plotbridge(nos,dx,dy,0.01,work);
+[dx,dy,work] = deformbasicbridge(nos,adj,xc,yc,len,0.05);
+plotbridge(nos,dx,dy,0.05,work);
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
